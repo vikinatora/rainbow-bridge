@@ -16,11 +16,27 @@ library ProofDecoder {
         MerklePath block_proof;
     }
 
+    struct FullOutcomeProofWithBlockRoot {
+        ExecutionOutcomeWithIdAndProof outcome_proof;
+        MerklePath outcome_root_proof; // TODO: now empty array
+        BlockHeaderLight block_header_lite;
+        MerklePath block_proof;
+        bytes32 head_merkle_root;
+    }
+
     function decodeFullOutcomeProof(Borsh.Data memory data) internal view returns (FullOutcomeProof memory proof) {
         proof.outcome_proof = data.decodeExecutionOutcomeWithIdAndProof();
         proof.outcome_root_proof = data.decodeMerklePath();
         proof.block_header_lite = data.decodeBlockHeaderLight();
         proof.block_proof = data.decodeMerklePath();
+    }
+
+    function decodeFullOutcomeProofWithBlockRoot(Borsh.Data memory data) internal view returns (FullOutcomeProofWithBlockRoot memory proof) {
+        proof.outcome_proof = data.decodeExecutionOutcomeWithIdAndProof();
+        proof.outcome_root_proof = data.decodeMerklePath();
+        proof.block_header_lite = data.decodeBlockHeaderLight();
+        proof.block_proof = data.decodeMerklePath();
+        proof.head_merkle_root = data.decodeBytes32();
     }
 
     struct BlockHeaderLight {

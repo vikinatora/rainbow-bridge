@@ -28,39 +28,36 @@ contract NearProver is INearProver, AdminControlled {
 
     function proveOutcome(bytes memory proofData) public view returns (bool) {
         Borsh.Data memory borsh = Borsh.from(proofData);
-        ProofDecoder.FullOutcomeProof memory fullOutcomeProof = borsh.decodeFullOutcomeProof();
+        ProofDecoder.FullOutcomeProofWithBlockRoot memory fullOutcomeProof = borsh.decodeFullOutcomeProofWithBlockRoot();
         borsh.done();        
-
-        // Step 1. Verify the block header hash against the latestHeader
-        // The header hash is precalculated inside block_header_lite.hash,
-        // so we can just use it instead of recalculating.
-        require(fullOutcomeProof.block_header_lite.hash == nearX.latestHeader(), "NearProver: block header does not match latest header");
-
-        // Step 2: Verify the outcome proof within the block (unchanged)
-        bytes32 hash = _computeRoot(
-            fullOutcomeProof.outcome_proof.outcome_with_id.hash,
-            fullOutcomeProof.outcome_proof.proof
+        
+        // Step 1: Verify the outcome proof
+        bytes32 expectedOutcomeRoot = _computeRoot(
+            sha256(
+                abi.encodePacked(
+                    _computeRoot(
+                        fullOutcomeProof.outcome_proof.outcome_with_id.hash,
+                        fullOutcomeProof.outcome_proof.proof
+                    )
+                )
+            ),
+            fullOutcomeProof.outcome_root_proof
         );
 
-        hash = sha256(abi.encodePacked(hash));
-
-        hash = _computeRoot(hash, fullOutcomeProof.outcome_root_proof);
-
         require(
-            hash == fullOutcomeProof.block_header_lite.inner_lite.outcome_root,
+            expectedOutcomeRoot == fullOutcomeProof.block_header_lite.inner_lite.outcome_root,
             "NearProver: outcome merkle proof is not valid"
         );
 
-        // Step 3. Verify the block merkle root
-        // bytes32 expectedBlockMerkleRoot = bridge.blockMerkleRoots(blockHeight);
-
-        // We have verified the block header, so we can use the block merkle root 
-        // from the light client header instead of fetching it from the contract.
-        bytes32 expectedBlockMerkleRoot = fullOutcomeProof.block_header_lite.inner_lite.block_merkle_root;
-        
-        require(
-            _computeRoot(fullOutcomeProof.block_header_lite.hash, fullOutcomeProof.block_proof) ==
-                expectedBlockMerkleRoot,
+        // Step 2. Verify the block merkle root
+        bytes32 expectedBlockMerkleRoot = fullOutcomeProof.head_merkle_root;
+        bytes32 lcHeader = nearX.latestHeader();
+        bytes32 computedBlockMerkleRoot = _computeRoot(lcHeader, fullOutcomeProof.block_proof);
+        console.log("expectedBlockMerkleRoot");
+        console.logBytes32(expectedBlockMerkleRoot);
+        console.log("computedBlockMerkleRoot");
+        console.logBytes32(computedBlockMerkleRoot);
+        require(computedBlockMerkleRoot == expectedBlockMerkleRoot,
             "NearProver: block proof is not valid"
         );
 
