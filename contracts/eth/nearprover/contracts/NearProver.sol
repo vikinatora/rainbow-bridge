@@ -13,6 +13,8 @@ contract NearProver is INearProver, AdminControlled {
     using NearDecoder for Borsh.Data;
     using ProofDecoder for Borsh.Data;
 
+    //TODO: Double check if nearx is really not needed here
+    // and remove if that's the case
     INearX public nearX;
 
     constructor(
@@ -30,7 +32,7 @@ contract NearProver is INearProver, AdminControlled {
         Borsh.Data memory borsh = Borsh.from(proofData);
         ProofDecoder.FullOutcomeProofWithBlockRoot memory fullOutcomeProof = borsh.decodeFullOutcomeProofWithBlockRoot();
         borsh.done();        
-        
+
         // Step 1: Verify the outcome proof
         bytes32 expectedOutcomeRoot = _computeRoot(
             sha256(
@@ -50,14 +52,9 @@ contract NearProver is INearProver, AdminControlled {
         );
 
         // Step 2. Verify the block merkle root
-        bytes32 expectedBlockMerkleRoot = fullOutcomeProof.head_merkle_root;
-        bytes32 lcHeader = nearX.latestHeader();
-        bytes32 computedBlockMerkleRoot = _computeRoot(lcHeader, fullOutcomeProof.block_proof);
-        console.log("expectedBlockMerkleRoot");
-        console.logBytes32(expectedBlockMerkleRoot);
-        console.log("computedBlockMerkleRoot");
-        console.logBytes32(computedBlockMerkleRoot);
-        require(computedBlockMerkleRoot == expectedBlockMerkleRoot,
+        bytes32 computedBlockMerkleRoot = _computeRoot(fullOutcomeProof.block_header_lite.hash, fullOutcomeProof.block_proof);
+
+        require(computedBlockMerkleRoot == fullOutcomeProof.head_merkle_root,
             "NearProver: block proof is not valid"
         );
 

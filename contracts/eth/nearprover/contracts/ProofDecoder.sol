@@ -18,7 +18,7 @@ library ProofDecoder {
 
     struct FullOutcomeProofWithBlockRoot {
         ExecutionOutcomeWithIdAndProof outcome_proof;
-        MerklePath outcome_root_proof; // TODO: now empty array
+        MerklePath outcome_root_proof;
         BlockHeaderLight block_header_lite;
         MerklePath block_proof;
         bytes32 head_merkle_root;
