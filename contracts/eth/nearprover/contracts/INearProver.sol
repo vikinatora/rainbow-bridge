@@ -2,5 +2,5 @@
 pragma solidity ^0.8;
 
 interface INearProver {
-    function proveOutcome(bytes calldata proofData, uint64 blockHeight) external view returns (bool);
+    function proveOutcome(bytes calldata proofData) external view returns (bool);
 }

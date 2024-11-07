@@ -2,59 +2,59 @@
 pragma solidity ^0.8;
 
 import "rainbow-bridge-sol/nearbridge/contracts/AdminControlled.sol";
-import "rainbow-bridge-sol/nearbridge/contracts/INearBridge.sol";
+import "rainbow-bridge-sol/nearbridge/contracts/INearX.sol";
 import "rainbow-bridge-sol/nearbridge/contracts/NearDecoder.sol";
 import "./ProofDecoder.sol";
 import "./INearProver.sol";
+import "hardhat/console.sol";
 
 contract NearProver is INearProver, AdminControlled {
     using Borsh for Borsh.Data;
     using NearDecoder for Borsh.Data;
     using ProofDecoder for Borsh.Data;
 
-    INearBridge public bridge;
+    //TODO: Double check if nearx is really not needed here
+    // and remove if that's the case
+    INearX public nearX;
 
     constructor(
-        INearBridge _bridge,
+        address _nearX,
         address _admin,
         uint _pausedFlags
     ) AdminControlled(_admin, _pausedFlags) {
-        bridge = _bridge;
+        nearX = INearX(_nearX);
     }
 
     uint constant UNPAUSE_ALL = 0;
     uint constant PAUSED_VERIFY = 1;
 
-    function proveOutcome(bytes memory proofData, uint64 blockHeight)
-        public
-        view
-        override
-        pausable(PAUSED_VERIFY)
-        returns (bool)
-    {
+    function proveOutcome(bytes memory proofData) public view returns (bool) {
         Borsh.Data memory borsh = Borsh.from(proofData);
-        ProofDecoder.FullOutcomeProof memory fullOutcomeProof = borsh.decodeFullOutcomeProof();
-        borsh.done();
+        ProofDecoder.FullOutcomeProofWithBlockRoot memory fullOutcomeProof = borsh.decodeFullOutcomeProofWithBlockRoot();
+        borsh.done();        
 
-        bytes32 hash = _computeRoot(
-            fullOutcomeProof.outcome_proof.outcome_with_id.hash,
-            fullOutcomeProof.outcome_proof.proof
+        // Step 1: Verify the outcome proof
+        bytes32 expectedOutcomeRoot = _computeRoot(
+            sha256(
+                abi.encodePacked(
+                    _computeRoot(
+                        fullOutcomeProof.outcome_proof.outcome_with_id.hash,
+                        fullOutcomeProof.outcome_proof.proof
+                    )
+                )
+            ),
+            fullOutcomeProof.outcome_root_proof
         );
 
-        hash = sha256(abi.encodePacked(hash));
-
-        hash = _computeRoot(hash, fullOutcomeProof.outcome_root_proof);
-
         require(
-            hash == fullOutcomeProof.block_header_lite.inner_lite.outcome_root,
+            expectedOutcomeRoot == fullOutcomeProof.block_header_lite.inner_lite.outcome_root,
             "NearProver: outcome merkle proof is not valid"
         );
 
-        bytes32 expectedBlockMerkleRoot = bridge.blockMerkleRoots(blockHeight);
+        // Step 2. Verify the block merkle root
+        bytes32 computedBlockMerkleRoot = _computeRoot(fullOutcomeProof.block_header_lite.hash, fullOutcomeProof.block_proof);
 
-        require(
-            _computeRoot(fullOutcomeProof.block_header_lite.hash, fullOutcomeProof.block_proof) ==
-                expectedBlockMerkleRoot,
+        require(computedBlockMerkleRoot == fullOutcomeProof.head_merkle_root,
             "NearProver: block proof is not valid"
         );
 
